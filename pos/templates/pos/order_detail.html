@@ -42,6 +42,18 @@
       </tfoot>
     </table>
 
+    {% if order.is_paid %}
+      {% for t in order.transactions.all %}
+      <div class="alert alert-success">
+        Đã thanh toán {{ t.get_method_display }}:
+        khách đưa <strong>{{ t.amount_paid }}</strong>,
+        tiền thừa trả khách <strong>{{ t.change_returned }}</strong>.
+      </div>
+      {% endfor %}
+    {% else %}
+      <a href="{% url 'order_pay_cash' order.pk %}" class="btn btn-success">Thanh toán tiền mặt</a>
+    {% endif %}
+
     <a href="{% url 'order_create' %}" class="btn btn-primary">Tạo đơn mới</a>
     <a href="{% url 'product_list' %}" class="btn btn-outline-secondary">Xem thực đơn</a>
   </div>

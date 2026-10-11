@@ -2,7 +2,7 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .models import Order, OrderItem, Product
+from .models import Order, OrderItem, Product, Transaction
 
 
 def product_list(request):
@@ -71,3 +71,38 @@ def order_detail(request, pk):
     order = get_object_or_404(Order, pk=pk)
     items = order.items.select_related("product")
     return render(request, "pos/order_detail.html", {"order": order, "items": items})
+
+@login_required
+def order_pay_cash(request, pk):
+    order = get_object_or_404(Order, pk=pk)
+
+    # Đơn đã thanh toán hoặc đã xóa thì không thanh toán nữa
+    if order.is_paid or order.status == Order.Status.DELETED:
+        return redirect("order_detail", pk=order.pk)
+
+    error = None
+    if request.method == "POST":
+        raw = request.POST.get("amount_paid", "").strip()
+        try:
+            amount_paid = int(raw)
+        except ValueError:
+            amount_paid = None
+
+        if amount_paid is None or amount_paid < 0:
+            error = "Vui lòng nhập số tiền hợp lệ."
+        elif amount_paid < order.total:
+            error = "Số tiền khách đưa chưa đủ. Vui lòng yêu cầu khách trả thêm."
+        else:
+            with transaction.atomic():
+                Transaction.objects.create(
+                    order=order,
+                    method=Transaction.Method.CASH,
+                    amount_paid=amount_paid,
+                    change_returned=amount_paid - order.total,
+                )
+                order.is_paid = True
+                order.status = Order.Status.COMPLETED
+                order.save()
+            return redirect("order_detail", pk=order.pk)
+
+    return render(request, "pos/order_pay_cash.html", {"order": order, "error": error})
