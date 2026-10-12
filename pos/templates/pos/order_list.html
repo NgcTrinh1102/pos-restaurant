@@ -1,0 +1,136 @@
+{% extends "pos/base.html" %}
+{% load pos_extras %}
+{% block title %}Đơn hàng{% endblock %}
+
+{% block extra_css %}
+<style>
+  .orders-page { padding: 20px 28px; }
+  .orders-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+  .orders-tools { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+  .orders-tools .searchbox { max-width: 560px; }
+  .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  .filter {
+    border: 1.5px solid #ffb877; color: #e56d00; background: #fff; border-radius: 999px;
+    padding: 3px 14px; font-size: 12.5px; font-weight: 600; text-decoration: none;
+  }
+  .filter.active { background: var(--orange); border-color: var(--orange); color: #fff; }
+  .ogrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 18px; }
+  .ocard {
+    background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+    box-shadow: 0 1px 5px rgba(0,0,0,.08); display: flex; flex-direction: column;
+  }
+  .ocard.cancelled { opacity: .6; }
+  .ocard-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .ocard-top .oid { font-weight: 700; font-size: 13.5px; margin-right: auto; color: var(--ink); text-decoration: none; }
+  .ocard-meta { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 8px; }
+  .paid-ok { color: var(--green); }
+  .paid-no { color: #e56d00; }
+  .otable { width: 100%; font-size: 12.5px; margin-bottom: 6px; }
+  .otable th { font-weight: 600; text-align: center; padding: 4px 2px; }
+  .otable td { padding: 4px 2px; text-align: center; }
+  .otable td.nm { text-align: center; }
+  .otable td.pr { text-align: right; }
+  .otable th:last-child { text-align: right; }
+  .ototal { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 2px; }
+  .ototal b { font-weight: 600; }
+  .oactions { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: 8px; }
+  .oactions .icons { display: flex; gap: 18px; flex: 1; justify-content: center; }
+  .icon-btn { background: none; border: 0; font-size: 18px; padding: 0; cursor: pointer; color: #e04b4b; }
+  .icon-btn.disabled { color: #c9c9c9; cursor: not-allowed; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="orders-page">
+  <div class="orders-head">
+    <h1 class="page-title mb-0" style="font-size:26px;">Tất cả đơn hàng</h1>
+    <a href="{% url 'order_create' %}" class="btn-orange" style="font-size:17px;">+ Thêm đơn hàng</a>
+  </div>
+
+  <div class="orders-tools">
+    <div class="searchbox" style="flex:1;">
+      <input type="search" id="orderSearch" placeholder="Tìm kiếm đơn hàng ở đây" autocomplete="off">
+      <i class="bi bi-search"></i>
+    </div>
+  </div>
+
+  <div class="filters">
+    <a class="filter {% if not current %}active{% endif %}" href="{% url 'order_list' %}">Tất cả</a>
+    <a class="filter {% if current == 'cooking' %}active{% endif %}" href="?status=cooking">Đang chế biến</a>
+    <a class="filter {% if current == 'done' %}active{% endif %}" href="?status=done">Đã hoàn thành</a>
+    <a class="filter {% if current == 'cancelled' %}active{% endif %}" href="?status=cancelled">Đơn bị hủy</a>
+  </div>
+
+  <div class="ogrid" id="ogrid">
+    {% for o in orders %}
+    <div class="ocard {% if o.status == 'deleted' %}cancelled{% endif %}" data-search="#{{ o.id }} {{ o.table_number }} {{ o.get_order_type_display|lower }}">
+      <div class="ocard-top">
+        <a class="oid" href="{% url 'order_detail' o.pk %}">Đơn hàng #{{ o.id }}</a>
+        {% if o.status == 'deleted' %}
+          <span class="pill pill-grey">Đã hủy</span>
+        {% elif o.status == 'ready' or o.status == 'completed' %}
+          <span class="pill pill-orange">Hoàn thành</span>
+        {% else %}
+          <span class="pill pill-green">Đang chế biến</span>
+        {% endif %}
+        <span class="pill pill-peach">{{ o.get_order_type_display }}{% if o.table_number %} · Bàn {{ o.table_number }}{% endif %}</span>
+      </div>
+
+      <div class="ocard-meta">
+        <span>{{ o.created_at|date:"d/m/Y" }}</span>
+        {% if o.is_paid %}
+          <span class="paid-ok">Đã thanh toán</span>
+        {% else %}
+          <span class="paid-no">Chưa thanh toán</span>
+        {% endif %}
+        <span>{{ o.created_at|date:"H:i" }}</span>
+      </div>
+
+      <table class="otable">
+        <thead><tr><th>Số lượng</th><th>Tên món</th><th>Giá tiền</th></tr></thead>
+        <tbody>
+          {% for item in o.items.all %}
+          <tr>
+            <td>{{ item.quantity|stringformat:"02d" }}</td>
+            <td class="nm">{{ item.product.name }}</td>
+            <td class="pr">{{ item.line_total|vnd }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="ototal"><b>Tổng tiền (gồm VAT 8%)</b><b>{{ o.total|vnd }}</b></div>
+
+      <div class="oactions">
+        <div class="icons">
+          {% if o.status == 'pending' and not o.is_paid %}
+          <form method="post" action="{% url 'order_cancel' o.pk %}" onsubmit="return confirm('Hủy đơn hàng #{{ o.id }}?');">
+            {% csrf_token %}
+            <button type="submit" class="icon-btn" title="Hủy đơn"><i class="bi bi-trash3"></i></button>
+          </form>
+          {% else %}
+          <span class="icon-btn disabled" title="Chỉ hủy được đơn đang ở trạng thái Pending"><i class="bi bi-trash3"></i></span>
+          {% endif %}
+        </div>
+        {% if not o.is_paid and o.status != 'deleted' %}
+        <a class="btn-dark-pill" href="{% url 'order_pay_cash' o.pk %}">Thanh toán</a>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <p class="text-muted">Chưa có đơn hàng nào.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.getElementById('orderSearch').addEventListener('input', function () {
+    var q = this.value.trim().toLowerCase();
+    document.querySelectorAll('.ocard').forEach(function (c) {
+      c.style.display = (!q || c.dataset.search.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
+    });
+  });
+</script>
+{% endblock %}

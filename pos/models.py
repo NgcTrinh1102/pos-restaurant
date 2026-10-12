@@ -18,6 +18,7 @@ class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.PROTECT)
     price = models.PositiveIntegerField()          # đơn vị VND, số nguyên
     is_available = models.BooleanField(default=True)  # True = Còn hàng
+    image = models.ImageField(upload_to="products/", blank=True)
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)

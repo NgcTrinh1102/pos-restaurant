@@ -1,14 +1,17 @@
 from datetime import date
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
 from django.db import transaction
 from django.db.models import F, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from .models import Order, OrderItem, Product, Transaction
 
 
+@login_required
 def product_list(request):
     products = Product.objects.select_related("category").order_by("category__name", "name")
     return render(request, "pos/product_list.html", {"products": products})
@@ -23,9 +26,14 @@ def order_create(request):
         .order_by("category__name", "name")
     )
 
+    quantities = {}       # {mã món: số lượng} để giữ lại giỏ hàng khi có lỗi
+    posted_type = ""
+    posted_table = ""
+
     if request.method == "POST":
         order_type = request.POST.get("order_type", "")
         table_number = request.POST.get("table_number", "").strip()
+        posted_type, posted_table = order_type, table_number
 
         # Đọc số lượng của từng món từ form
         selected = []
@@ -36,6 +44,8 @@ def order_create(request):
                 qty = int(raw)
             except ValueError:
                 qty = 0
+            if qty > 0:
+                quantities[p.id] = min(qty, 999)
             if qty > 999:
                 errors.append(f"Số lượng món {p.name} tối đa là 999.")
             elif qty > 0:
@@ -50,7 +60,17 @@ def order_create(request):
             errors.append("Vui lòng chọn ít nhất một món.")
 
         if errors:
-            return render(request, "pos/order_create.html", {"products": products, "errors": errors})
+            return render(
+                request,
+                "pos/order_create.html",
+                {
+                    "products": products,
+                    "errors": errors,
+                    "quantities": quantities,
+                    "posted_type": posted_type,
+                    "posted_table": posted_table,
+                },
+            )
 
         # Lưu đơn hàng và các dòng món trong một khối
         with transaction.atomic():
@@ -65,9 +85,47 @@ def order_create(request):
                     for p, qty in selected
                 ]
             )
-        return redirect("order_detail", pk=order.pk)
+        messages.success(request, f"Đơn hàng #{order.pk} đã được đặt thành công.")
+        return redirect("order_list")
 
-    return render(request, "pos/order_create.html", {"products": products})
+    return render(
+        request,
+        "pos/order_create.html",
+        {
+            "products": products,
+            "quantities": quantities,
+            "posted_type": posted_type,
+            "posted_table": posted_table,
+        },
+    )
+
+
+@login_required
+def order_list(request):
+    current = request.GET.get("status", "")
+    groups = {
+        "cooking": [Order.Status.PENDING, Order.Status.IN_KITCHEN],
+        "done": [Order.Status.READY, Order.Status.COMPLETED],
+        "cancelled": [Order.Status.DELETED],
+    }
+    orders = Order.objects.prefetch_related("items__product").order_by("-created_at")
+    if current in groups:
+        orders = orders.filter(status__in=groups[current])
+    else:
+        current = ""
+    return render(request, "pos/order_list.html", {"orders": orders, "current": current})
+
+
+@login_required
+@require_POST
+def order_cancel(request, pk):
+    order = get_object_or_404(Order, pk=pk)
+    # Chỉ hủy được đơn đang Pending và chưa thanh toán (BR_012)
+    if order.status == Order.Status.PENDING and not order.is_paid:
+        order.status = Order.Status.DELETED
+        order.save()
+        messages.success(request, f"Đơn hàng #{order.pk} đã được hủy.")
+    return redirect("order_list")
 
 
 @login_required
@@ -75,6 +133,7 @@ def order_detail(request, pk):
     order = get_object_or_404(Order, pk=pk)
     items = order.items.select_related("product")
     return render(request, "pos/order_detail.html", {"order": order, "items": items})
+
 
 @login_required
 def order_pay_cash(request, pk):
@@ -110,6 +169,7 @@ def order_pay_cash(request, pk):
             return redirect("order_detail", pk=order.pk)
 
     return render(request, "pos/order_pay_cash.html", {"order": order, "error": error})
+
 
 @login_required
 @permission_required("pos.view_transaction", raise_exception=True)

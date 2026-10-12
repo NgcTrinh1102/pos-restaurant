@@ -1,38 +1,108 @@
 {% extends "pos/base.html" %}
-{% block title %}Thực đơn{% endblock %}
-{% block content %}
-    <h1 class="mb-4">Thực đơn Xiaoyu Vietnam</h1>
+{% load pos_extras %}
+{% block title %}Menu{% endblock %}
 
-    <table class="table table-striped align-middle">
-      <thead>
-        <tr>
-          <th>Mã</th>
-          <th>Tên món</th>
-          <th>Nhóm</th>
-          <th class="text-end">Giá (VND)</th>
-          <th>Trạng thái</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for p in products %}
-        <tr>
-          <td>{{ p.code }}</td>
-          <td>{{ p.name }}</td>
-          <td>{{ p.category.name }}</td>
-          <td class="text-end">{{ p.price }}</td>
-          <td>
-            {% if p.is_available %}
-              <span class="badge bg-success">Còn hàng</span>
-            {% else %}
-              <span class="badge bg-secondary">Hết hàng</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% empty %}
-        <tr>
-          <td colspan="5" class="text-center text-muted">Chưa có sản phẩm nào.</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+{% block extra_css %}
+<style>
+  .menu-page { padding: 20px 28px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="menu-page">
+  <div class="topbar">
+    <div class="brand-text">POS <span>System</span></div>
+    <div class="searchbox">
+      <input type="search" id="menuSearch" placeholder="Tìm kiếm món ăn ở đây" autocomplete="off">
+      <i class="bi bi-search"></i>
+    </div>
+    {% if user.is_staff %}
+    <a href="/admin/pos/product/add/" class="btn-orange ms-auto" style="font-size:15px; padding:9px 22px;">+ Thêm món</a>
+    {% endif %}
+  </div>
+
+  <h2 class="page-title">Menu</h2>
+
+  {% regroup products by category as groups %}
+  <div class="chips" id="chips">
+    <button type="button" class="chip active" data-cat="all">
+      <span class="thumb"><i class="bi bi-grid"></i></span>
+      <span><b>Tất cả món ăn</b><small>{{ products|length }} items</small></span>
+    </button>
+    {% for g in groups %}
+    <button type="button" class="chip" data-cat="{{ g.grouper.id }}">
+      {% if g.list.0.image %}
+      <img class="thumb" src="{{ g.list.0.image.url }}" alt="">
+      {% else %}
+      <span class="thumb"><i class="bi bi-egg-fried"></i></span>
+      {% endif %}
+      <span><b>{{ g.grouper.name }}</b><small>{{ g.list|length }} items</small></span>
+    </button>
+    {% endfor %}
+  </div>
+
+  <div class="pgrid" id="pgrid">
+    {% for p in products %}
+    <div class="pcard {% if not p.is_available %}soldout{% endif %}" data-cat="{{ p.category_id }}" data-name="{{ p.name|lower }}">
+      <div class="pimg">
+        {% if p.image %}
+        <img src="{{ p.image.url }}" alt="{{ p.name }}">
+        {% else %}
+        <span class="ph">{{ p.name|first }}</span>
+        {% endif %}
+      </div>
+      <div class="pcat">{{ p.category.name }} · {{ p.code }}</div>
+      <div class="pname">{{ p.name }}</div>
+      {% if p.is_available %}
+      <div class="pstock">Còn hàng</div>
+      {% else %}
+      <div class="pstock out">Hết hàng</div>
+      {% endif %}
+      <div class="pbottom">
+        <div class="pprice">{{ p.price|vnd }}đ</div>
+        {% if user.is_staff %}
+        <a href="/admin/pos/product/{{ p.id }}/change/" class="text-decoration-none small" style="color:var(--orange);">Sửa</a>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <p class="text-muted">Chưa có sản phẩm nào.</p>
+    {% endfor %}
+  </div>
+  <p class="text-muted mt-3 d-none" id="noResult">Không tìm thấy món phù hợp.</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var cards = Array.prototype.slice.call(document.querySelectorAll('.pcard'));
+  var currentCat = 'all';
+  var searchBox = document.getElementById('menuSearch');
+  var noResult = document.getElementById('noResult');
+
+  function applyFilter() {
+    var q = searchBox.value.trim().toLowerCase();
+    var shown = 0;
+    cards.forEach(function (card) {
+      var okCat = (currentCat === 'all') || (card.dataset.cat === currentCat);
+      var okName = !q || card.dataset.name.indexOf(q) !== -1;
+      var show = okCat && okName;
+      card.style.display = show ? '' : 'none';
+      if (show) { shown++; }
+    });
+    noResult.classList.toggle('d-none', shown !== 0 || cards.length === 0);
+  }
+
+  document.getElementById('chips').addEventListener('click', function (e) {
+    var chip = e.target.closest('.chip');
+    if (!chip) { return; }
+    document.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('active'); });
+    chip.classList.add('active');
+    currentCat = chip.dataset.cat;
+    applyFilter();
+  });
+  searchBox.addEventListener('input', applyFilter);
+})();
+</script>
 {% endblock %}
