@@ -1,6 +1,10 @@
-from django.contrib.auth.decorators import login_required
+from datetime import date
+
+from django.contrib.auth.decorators import login_required, permission_required
 from django.db import transaction
+from django.db.models import F, Sum
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from .models import Order, OrderItem, Product, Transaction
 
@@ -106,3 +110,53 @@ def order_pay_cash(request, pk):
             return redirect("order_detail", pk=order.pk)
 
     return render(request, "pos/order_pay_cash.html", {"order": order, "error": error})
+
+@login_required
+@permission_required("pos.view_transaction", raise_exception=True)
+def revenue_report(request):
+    today = timezone.localdate()
+    error = None
+
+    # Đọc ngày người dùng chọn, mặc định là hôm nay
+    raw = request.GET.get("date", "")
+    try:
+        selected = date.fromisoformat(raw) if raw else today
+    except ValueError:
+        selected = today
+        error = "Ngày không hợp lệ."
+
+    # Không cho xem ngày trong tương lai
+    if selected > today:
+        selected = today
+        error = "Không thể xem báo cáo của ngày trong tương lai."
+
+    transactions = Transaction.objects.filter(created_at__date=selected)
+
+    # Tiền thực thu = tiền khách đưa - tiền thừa trả lại
+    real_amount = F("amount_paid") - F("change_returned")
+    total_revenue = transactions.aggregate(s=Sum(real_amount))["s"] or 0
+    cash_revenue = (
+        transactions.filter(method=Transaction.Method.CASH)
+        .aggregate(s=Sum(real_amount))["s"]
+        or 0
+    )
+    total_orders = transactions.values("order").distinct().count()
+
+    # 5 món bán chạy nhất trong ngày
+    top_products = (
+        OrderItem.objects.filter(order__transactions__created_at__date=selected)
+        .values("product__name")
+        .annotate(qty=Sum("quantity"))
+        .order_by("-qty")[:5]
+    )
+
+    context = {
+        "selected": selected.isoformat(),
+        "today": today.isoformat(),
+        "error": error,
+        "total_revenue": total_revenue,
+        "cash_revenue": cash_revenue,
+        "total_orders": total_orders,
+        "top_products": top_products,
+    }
+    return render(request, "pos/revenue_report.html", context)

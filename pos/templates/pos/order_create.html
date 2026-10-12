@@ -62,6 +62,9 @@
 
       <button type="submit" class="btn btn-primary">Đặt hàng</button>
       <a href="{% url 'product_list' %}" class="btn btn-outline-secondary">Xem thực đơn</a>
+            {% if perms.pos.view_transaction %}
+      <a href="{% url 'revenue_report' %}" class="btn btn-outline-primary">Báo cáo doanh thu</a>
+      {% endif %}
     </form>
 
     <form method="post" action="{% url 'logout' %}" class="mt-3">
