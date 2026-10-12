@@ -1,33 +1,162 @@
 {% extends "pos/base.html" %}
-{% block title %}Thanh Toán{% endblock %}
+{% load pos_extras %}
+{% block title %}Thanh toán đơn #{{ order.id }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .pay-page { padding: 20px 28px; }
+  .pay-grid { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(320px, 420px); gap: 24px; align-items: start; }
+  @media (max-width: 900px) { .pay-grid { grid-template-columns: 1fr; } }
+  .panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: 0 1px 5px rgba(0,0,0,.06); }
+  .panel h3 { font-size: 17px; font-weight: 700; margin: 0 0 12px; }
+  .sum-table { width: 100%; font-size: 14px; }
+  .sum-table td { padding: 5px 2px; }
+  .sum-table td:last-child { text-align: right; }
+  .sum-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; }
+  .sum-row.total { font-size: 18px; font-weight: 700; border-top: 1px dashed #ccc; margin-top: 6px; padding-top: 10px; }
+  .method-tabs { display: flex; gap: 10px; margin-bottom: 14px; }
+  .mtab { flex: 1; border: 1.5px solid var(--line); background: #fff; border-radius: 10px; padding: 10px; font-weight: 700; cursor: pointer; }
+  .mtab.active { background: var(--peach); border-color: var(--orange); color: var(--orange-dark); }
+  .display { background: #f6f6f6; border-radius: 10px; padding: 12px 16px; text-align: right; margin-bottom: 10px; }
+  .display small { color: var(--muted); display: block; font-size: 12.5px; }
+  .display .big { font-size: 30px; font-weight: 700; }
+  .change-row { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 10px; }
+  .quick { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .quick button { flex: 1; min-width: 80px; border: 1.5px solid #ffb877; background: #fff; color: var(--orange-dark); border-radius: 999px; padding: 6px 4px; font-weight: 600; font-size: 13px; cursor: pointer; }
+  .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+  .numpad button { border: 1.5px solid var(--line); background: #fff; border-radius: 10px; padding: 14px 0; font-size: 20px; font-weight: 600; cursor: pointer; }
+  .numpad button:active { background: var(--peach); }
+  .numpad button.fn { background: #f1f1f1; }
+  .qr-box { text-align: center; padding: 10px 0; }
+  .qr-box #qrcode { display: inline-block; padding: 12px; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+  .btn-confirm { width: 100%; font-size: 17px; }
+  .btn-confirm:disabled { background: #d9d9d9; cursor: not-allowed; }
+  .err { background: #fdecec; border: 1px solid #f5b5b5; color: #b32020; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 14px; }
+</style>
+{% endblock %}
+
 {% block content %}
-    <h1 class="mb-3">Thanh toán tiền mặt</h1>
-    <p>Đơn hàng <strong>#{{ order.id }}</strong> · {{ order.get_order_type_display }}
-      {% if order.table_number %}· Bàn {{ order.table_number }}{% endif %}</p>
+<div class="pay-page">
+  <div class="topbar">
+    <div class="brand-text">Xiaoyu <span>Vietnam</span></div>
+    <a href="{% url 'order_list' %}" class="ms-auto text-decoration-none" style="color:var(--orange-dark); font-weight:600;"><i class="bi bi-arrow-left"></i> Quay lại đơn hàng</a>
+  </div>
+  <h2 class="page-title">Thanh toán đơn hàng #{{ order.id }}</h2>
 
-    <ul class="list-group mb-4">
-      <li class="list-group-item d-flex justify-content-between">
-        <span>Tạm tính</span><span>{{ order.subtotal }}</span>
-      </li>
-      <li class="list-group-item d-flex justify-content-between">
-        <span>VAT 8%</span><span>{{ order.vat }}</span>
-      </li>
-      <li class="list-group-item d-flex justify-content-between fw-bold">
-        <span>Tổng tiền cần thanh toán</span><span>{{ order.total }}</span>
-      </li>
-    </ul>
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
 
-    {% if error %}
-    <div class="alert alert-danger">{{ error }}</div>
-    {% endif %}
-
-    <form method="post">
-      {% csrf_token %}
-      <div class="mb-3">
-        <label class="form-label">Số tiền khách đưa (VND)</label>
-        <input type="number" name="amount_paid" class="form-control" min="0" required autofocus>
+  <div class="pay-grid">
+    <div class="panel">
+      <h3>Chi tiết đơn · {{ order.get_order_type_display }}{% if order.table_number %} · Bàn {{ order.table_number }}{% endif %}</h3>
+      <table class="sum-table">
+        {% for it in items %}
+        <tr><td>{{ it.quantity }} × {{ it.product.name }}</td><td>{{ it.line_total|vnd }}đ</td></tr>
+        {% endfor %}
+      </table>
+      <div style="margin-top:10px;">
+        <div class="sum-row"><span>Tạm tính</span><span>{{ order.subtotal|vnd }}đ</span></div>
+        <div class="sum-row"><span>VAT 8%</span><span>{{ order.vat|vnd }}đ</span></div>
+        <div class="sum-row total"><span>Tổng thanh toán</span><span>{{ order.total|vnd }}đ</span></div>
       </div>
-      <button type="submit" class="btn btn-success">Hoàn tất thanh toán</button>
-      <a href="{% url 'order_detail' order.pk %}" class="btn btn-outline-secondary">Quay lại</a>
+    </div>
+
+    <form method="post" class="panel" id="payForm">
+      {% csrf_token %}
+      <input type="hidden" name="method" id="method" value="cash">
+      <input type="hidden" name="amount_paid" id="amountInput" value="0">
+
+      <div class="method-tabs">
+        <button type="button" class="mtab active" data-m="cash"><i class="bi bi-cash-coin"></i> Tiền mặt</button>
+        <button type="button" class="mtab" data-m="qr"><i class="bi bi-qr-code"></i> Mã QR</button>
+      </div>
+
+      <div id="cashBox">
+        <div class="display">
+          <small>Khách đưa</small>
+          <div class="big" id="amountText">0đ</div>
+        </div>
+        <div class="change-row"><span id="changeLabel">Còn thiếu</span><span id="changeText">{{ order.total|vnd }}đ</span></div>
+        <div class="quick">
+          <button type="button" id="btnExact">Đủ tiền</button>
+          <button type="button" data-add="50000">+50.000</button>
+          <button type="button" data-add="100000">+100.000</button>
+          <button type="button" data-add="500000">+500.000</button>
+        </div>
+        <div class="numpad">
+          <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
+          <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
+          <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
+          <button type="button" class="fn" data-k="C">C</button><button type="button" data-k="0">0</button><button type="button" class="fn" data-k="000">000</button>
+        </div>
+        <button type="button" class="fn" id="btnBack" style="width:100%; margin-bottom:12px; border:1.5px solid var(--line); background:#f1f1f1; border-radius:10px; padding:8px; font-weight:600; cursor:pointer;"><i class="bi bi-backspace"></i> Xóa số cuối</button>
+      </div>
+
+      <div id="qrBox" class="qr-box d-none">
+        <div id="qrcode"></div>
+        <p class="mt-2 mb-1" style="font-weight:700;">Quét mã để thanh toán {{ order.total|vnd }}đ</p>
+        <p class="text-muted small">Đây là mã mô phỏng. Sau khi khách chuyển khoản xong, bấm xác nhận bên dưới.</p>
+      </div>
+
+      <button type="submit" class="btn-orange btn-confirm" id="btnPay" disabled>Xác nhận thanh toán</button>
     </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(function () {
+  var TOTAL = {{ order.total }};
+  var amount = 0;
+  var method = 'cash';
+  var qrDone = false;
+
+  function money(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ'; }
+
+  function render() {
+    document.getElementById('amountText').textContent = money(amount);
+    document.getElementById('amountInput').value = amount;
+    var diff = amount - TOTAL;
+    document.getElementById('changeLabel').textContent = diff >= 0 ? 'Tiền thừa trả khách' : 'Còn thiếu';
+    document.getElementById('changeText').textContent = money(Math.abs(diff));
+    document.getElementById('changeText').style.color = diff >= 0 ? '#3da35d' : '#e04b4b';
+    document.getElementById('btnPay').disabled = (method === 'cash' && amount < TOTAL);
+  }
+
+  document.querySelectorAll('.numpad button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var k = b.dataset.k;
+      if (k === 'C') { amount = 0; }
+      else { amount = parseInt(String(amount === 0 ? '' : amount) + k, 10) || 0; }
+      if (amount > 999999999) { amount = 999999999; }
+      render();
+    });
+  });
+  document.getElementById('btnBack').addEventListener('click', function () {
+    amount = Math.floor(amount / 10); render();
+  });
+  document.getElementById('btnExact').addEventListener('click', function () { amount = TOTAL; render(); });
+  document.querySelectorAll('[data-add]').forEach(function (b) {
+    b.addEventListener('click', function () { amount += parseInt(b.dataset.add, 10); render(); });
+  });
+
+  document.querySelectorAll('.mtab').forEach(function (t) {
+    t.addEventListener('click', function () {
+      method = t.dataset.m;
+      document.getElementById('method').value = method;
+      document.querySelectorAll('.mtab').forEach(function (x) { x.classList.toggle('active', x === t); });
+      document.getElementById('cashBox').classList.toggle('d-none', method !== 'cash');
+      document.getElementById('qrBox').classList.toggle('d-none', method !== 'qr');
+      document.getElementById('btnPay').textContent = method === 'qr' ? 'Xác nhận đã nhận tiền' : 'Xác nhận thanh toán';
+      if (method === 'qr' && !qrDone && window.QRCode) {
+        new QRCode(document.getElementById('qrcode'), { text: 'XIAOYU-VN|ORDER-{{ order.id }}|' + TOTAL, width: 180, height: 180 });
+        qrDone = true;
+      }
+      render();
+    });
+  });
+  render();
+})();
+</script>
 {% endblock %}

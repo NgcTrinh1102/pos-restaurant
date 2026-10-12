@@ -1,0 +1,38 @@
+{% extends "pos/base.html" %}
+{% load pos_extras %}
+{% block title %}Thanh toán thành công{% endblock %}
+
+{% block extra_css %}
+<style>
+  .paid-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--peach); }
+  .paid-card { background: #fff; border-radius: 16px; padding: 32px 36px; width: 100%; max-width: 440px; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,.1); }
+  .tick { width: 84px; height: 84px; border-radius: 50%; background: var(--green); color: #fff; font-size: 46px; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+  .paid-card h2 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .paid-rows { text-align: left; margin: 18px 0; border-top: 1px dashed #ccc; padding-top: 12px; }
+  .paid-rows div { display: flex; justify-content: space-between; padding: 5px 0; font-size: 15px; }
+  .paid-rows .big { font-size: 20px; font-weight: 700; }
+  .paid-actions { display: flex; gap: 10px; }
+  .paid-actions a { flex: 1; text-align: center; }
+  .btn-outline { border: 1.5px solid var(--orange); color: var(--orange-dark); border-radius: 999px; padding: 10px; font-weight: 700; text-decoration: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="paid-wrap">
+  <div class="paid-card">
+    <div class="tick"><i class="bi bi-check-lg"></i></div>
+    <h2>Thanh toán thành công!</h2>
+    <div class="text-muted">Đơn hàng #{{ order.id }} · {{ txn.created_at|date:"d/m/Y H:i" }}</div>
+    <div class="paid-rows">
+      <div><span>Hình thức</span><b>{{ txn.get_method_display }}</b></div>
+      <div><span>Tổng thanh toán</span><b>{{ order.total|vnd }}đ</b></div>
+      <div><span>Khách đưa</span><b>{{ txn.amount_paid|vnd }}đ</b></div>
+      <div class="big"><span>Tiền thừa</span><span style="color:var(--orange-dark);">{{ txn.change_returned|vnd }}đ</span></div>
+    </div>
+    <div class="paid-actions">
+      <a class="btn-outline" href="{% url 'order_list' %}">Xem đơn hàng</a>
+      <a class="btn-orange" href="{% url 'order_create' %}" style="padding:10px; font-size:15px;">Đơn mới</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

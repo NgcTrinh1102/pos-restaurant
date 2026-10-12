@@ -11,13 +11,13 @@
 {% block content %}
 <div class="menu-page">
   <div class="topbar">
-    <div class="brand-text">POS <span>System</span></div>
+    <div class="brand-text">Xiaoyu <span>Vietnam</span></div>
     <div class="searchbox">
       <input type="search" id="menuSearch" placeholder="Tìm kiếm món ăn ở đây" autocomplete="off">
       <i class="bi bi-search"></i>
     </div>
     {% if user.is_staff %}
-    <a href="/admin/pos/product/add/" class="btn-orange ms-auto" style="font-size:15px; padding:9px 22px;">+ Thêm món</a>
+    <a href="{% url 'product_create' %}" class="btn-orange ms-auto" style="font-size:15px; padding:9px 22px;">+ Thêm món</a>
     {% endif %}
   </div>
 
@@ -61,7 +61,13 @@
       <div class="pbottom">
         <div class="pprice">{{ p.price|vnd }}đ</div>
         {% if user.is_staff %}
-        <a href="/admin/pos/product/{{ p.id }}/change/" class="text-decoration-none small" style="color:var(--orange);">Sửa</a>
+        <span class="d-flex align-items-center gap-2">
+          <a href="{% url 'product_edit' p.id %}" class="text-decoration-none" style="color:var(--orange);" title="Sửa"><i class="bi bi-pencil-square"></i></a>
+          <form method="post" action="{% url 'product_delete' p.id %}" class="m-0" onsubmit="return confirm('Xóa món {{ p.name|escapejs }}?');">
+            {% csrf_token %}
+            <button type="submit" class="border-0 bg-transparent p-0" style="color:#e04b4b;" title="Xóa"><i class="bi bi-trash3"></i></button>
+          </form>
+        </span>
         {% endif %}
       </div>
     </div>

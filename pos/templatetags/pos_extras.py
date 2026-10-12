@@ -19,4 +19,3 @@ def get_item(mapping, key):
         return mapping.get(key, 0)
     except AttributeError:
         return 0
-    

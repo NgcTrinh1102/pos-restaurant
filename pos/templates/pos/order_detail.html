@@ -1,52 +1,48 @@
 {% extends "pos/base.html" %}
-{% block title %}Chi tiết đơn hàng{% endblock %}
-{% block content %}
-    <h1 class="mb-3">Đơn hàng #{{ order.id }}</h1>
-    <p>
-      Loại: <strong>{{ order.get_order_type_display }}</strong>
-      {% if order.table_number %} · Bàn: <strong>{{ order.table_number }}</strong>{% endif %}
-      · Trạng thái: <strong>{{ order.get_status_display }}</strong>
-      · Thu ngân: <strong>{{ order.created_by.username }}</strong>
-    </p>
+{% load pos_extras %}
+{% block title %}Đơn hàng #{{ order.id }}{% endblock %}
 
-    <table class="table align-middle">
-      <thead>
-        <tr>
-          <th>Món</th>
-          <th class="text-end">Đơn giá</th>
-          <th class="text-end">Số lượng</th>
-          <th class="text-end">Thành tiền</th>
-        </tr>
-      </thead>
+{% block extra_css %}
+<style>
+  .det-page { padding: 20px 28px; max-width: 760px; }
+  .panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: 0 1px 5px rgba(0,0,0,.06); }
+  .dtable { width: 100%; font-size: 14.5px; margin: 12px 0; }
+  .dtable th { font-weight: 600; border-bottom: 1px solid var(--line); padding: 6px 4px; }
+  .dtable td { padding: 6px 4px; border-bottom: 1px solid #f0f0f0; }
+  .dtable .r { text-align: right; }
+  .sum-row { display: flex; justify-content: space-between; padding: 3px 0; }
+  .sum-row.total { font-weight: 700; font-size: 18px; border-top: 1px dashed #ccc; margin-top: 6px; padding-top: 8px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="det-page">
+  <div class="topbar">
+    <div class="brand-text">Xiaoyu <span>Vietnam</span></div>
+    <a href="{% url 'order_list' %}" class="ms-auto text-decoration-none" style="color:var(--orange-dark); font-weight:600;"><i class="bi bi-arrow-left"></i> Danh sách đơn</a>
+  </div>
+  <h2 class="page-title">Đơn hàng #{{ order.id }}</h2>
+  <div class="panel">
+    <div class="d-flex flex-wrap gap-2 mb-2">
+      <span class="pill pill-peach">{{ order.get_order_type_display }}{% if order.table_number %} · Bàn {{ order.table_number }}{% endif %}</span>
+      <span class="pill pill-green">{{ order.get_status_display }}</span>
+      {% if order.is_paid %}<span class="pill pill-orange">Đã thanh toán</span>{% else %}<span class="pill pill-grey">Chưa thanh toán</span>{% endif %}
+    </div>
+    <div class="text-muted small">Tạo lúc {{ order.created_at|date:"d/m/Y H:i" }}{% if order.created_by %} · bởi {{ order.created_by.username }}{% endif %}</div>
+    <table class="dtable">
+      <thead><tr><th>Món</th><th class="r">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th></tr></thead>
       <tbody>
-        {% for item in items %}
-        <tr>
-          <td>{{ item.product.name }}</td>
-          <td class="text-end">{{ item.unit_price }}</td>
-          <td class="text-end">{{ item.quantity }}</td>
-          <td class="text-end">{{ item.line_total }}</td>
-        </tr>
+        {% for it in items %}
+        <tr><td>{{ it.product.name }}</td><td class="r">{{ it.quantity }}</td><td class="r">{{ it.unit_price|vnd }}</td><td class="r">{{ it.line_total|vnd }}</td></tr>
         {% endfor %}
       </tbody>
-      <tfoot>
-        <tr><td colspan="3" class="text-end">Tạm tính</td><td class="text-end">{{ order.subtotal }}</td></tr>
-        <tr><td colspan="3" class="text-end">VAT 8%</td><td class="text-end">{{ order.vat }}</td></tr>
-        <tr class="fw-bold"><td colspan="3" class="text-end">Tổng cộng</td><td class="text-end">{{ order.total }}</td></tr>
-      </tfoot>
     </table>
-
-    {% if order.is_paid %}
-      {% for t in order.transactions.all %}
-      <div class="alert alert-success">
-        Đã thanh toán {{ t.get_method_display }}:
-        khách đưa <strong>{{ t.amount_paid }}</strong>,
-        tiền thừa trả khách <strong>{{ t.change_returned }}</strong>.
-      </div>
-      {% endfor %}
-    {% else %}
-      <a href="{% url 'order_pay_cash' order.pk %}" class="btn btn-success">Thanh toán tiền mặt</a>
+    <div class="sum-row"><span>Tạm tính</span><span>{{ order.subtotal|vnd }}đ</span></div>
+    <div class="sum-row"><span>VAT 8%</span><span>{{ order.vat|vnd }}đ</span></div>
+    <div class="sum-row total"><span>Tổng cộng</span><span>{{ order.total|vnd }}đ</span></div>
+    {% if not order.is_paid and order.status != 'deleted' %}
+    <div class="mt-3"><a class="btn-orange" href="{% url 'order_pay_cash' order.pk %}" style="font-size:15px;">Thanh toán</a></div>
     {% endif %}
-
-    <a href="{% url 'order_create' %}" class="btn btn-primary">Tạo đơn mới</a>
-    <a href="{% url 'product_list' %}" class="btn btn-outline-secondary">Xem thực đơn</a>
+  </div>
+</div>
 {% endblock %}

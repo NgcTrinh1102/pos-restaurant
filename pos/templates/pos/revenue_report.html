@@ -1,59 +1,107 @@
 {% extends "pos/base.html" %}
-{% block title %}Báo Cáo Doanh Thu{% endblock %}
+{% load pos_extras %}
+{% block title %}Báo cáo doanh thu{% endblock %}
+
+{% block extra_css %}
+<style>
+  .rep-page { padding: 20px 28px; }
+  .rep-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; }
+  .filter { border: 1.5px solid #ffb877; color: #e56d00; background: #fff; border-radius: 999px; padding: 5px 16px; font-size: 13px; font-weight: 600; text-decoration: none; }
+  .filter.active { background: var(--orange); border-color: var(--orange); color: #fff; }
+  .rep-filters input[type=date] { border: 1.5px solid #cfcfcf; border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 18px; }
+  .kpi { background: var(--peach); border-radius: 12px; padding: 14px 16px; }
+  .kpi small { color: #8a5a2b; font-weight: 600; }
+  .kpi .v { font-size: 24px; font-weight: 700; }
+  .kpi.alt { background: #fff; border: 1px solid var(--line); }
+  .charts { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .charts.two { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 900px) { .charts, .charts.two { grid-template-columns: 1fr; } }
+  .panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px; box-shadow: 0 1px 5px rgba(0,0,0,.06); }
+  .panel h3 { font-size: 16px; font-weight: 700; margin: 0 0 10px; }
+  .chart-box { position: relative; height: 260px; }
+  .err { background: #fdecec; border: 1px solid #f5b5b5; color: #b32020; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 14px; }
+</style>
+{% endblock %}
+
 {% block content %}
-    <h1 class="mb-4">Báo cáo doanh thu</h1>
+<div class="rep-page">
+  <div class="topbar">
+    <div class="brand-text">Xiaoyu <span>Vietnam</span></div>
+  </div>
+  <h2 class="page-title">Báo cáo doanh thu</h2>
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
 
-    <form method="get" class="row g-2 align-items-end mb-4">
-      <div class="col-auto">
-        <label class="form-label">Chọn ngày</label>
-        <input type="date" name="date" value="{{ selected }}" max="{{ today }}" class="form-control">
-      </div>
-      <div class="col-auto">
-        <button type="submit" class="btn btn-primary">Áp dụng</button>
-      </div>
-    </form>
+  <form method="get" class="rep-filters">
+    <a class="filter {% if range_key == 'today' %}active{% endif %}" href="?range=today">Hôm nay</a>
+    <a class="filter {% if range_key == '7d' %}active{% endif %}" href="?range=7d">7 ngày</a>
+    <a class="filter {% if range_key == '30d' %}active{% endif %}" href="?range=30d">30 ngày</a>
+    <span class="text-muted small ms-2">hoặc chọn ngày:</span>
+    <input type="date" name="date" value="{{ selected }}" max="{{ today }}" onchange="this.form.submit()">
+    <span class="text-muted small">Từ {{ start|date:"d/m/Y" }} đến {{ end|date:"d/m/Y" }}</span>
+  </form>
 
-    {% if error %}
-    <div class="alert alert-warning">{{ error }}</div>
+  <div class="kpis">
+    <div class="kpi"><small>Tổng doanh thu</small><div class="v">{{ total_revenue|vnd }}đ</div></div>
+    <div class="kpi"><small>Số đơn đã thanh toán</small><div class="v">{{ total_orders }}</div></div>
+    <div class="kpi alt"><small>Trung bình mỗi đơn</small><div class="v">{{ average|vnd }}đ</div></div>
+    <div class="kpi alt"><small>Tiền mặt / QR</small><div class="v" style="font-size:17px;">{{ cash_revenue|vnd }}đ / {{ qr_revenue|vnd }}đ</div></div>
+  </div>
+
+  <div class="charts">
+    <div class="panel"><h3>Doanh thu theo ngày</h3><div class="chart-box"><canvas id="chDay"></canvas></div></div>
+    <div class="panel"><h3>Hình thức thanh toán</h3><div class="chart-box"><canvas id="chMethod"></canvas></div></div>
+  </div>
+  <div class="panel">
+    <h3>Top 5 món bán chạy</h3>
+    {% if top_products %}
+    <div class="chart-box"><canvas id="chTop"></canvas></div>
+    {% else %}
+    <p class="text-muted mb-0">Chưa có dữ liệu trong khoảng thời gian này.</p>
     {% endif %}
+  </div>
+</div>
+{% endblock %}
 
-    <div class="row g-3 mb-4">
-      <div class="col-md-4">
-        <div class="card"><div class="card-body">
-          <div class="text-muted">Tổng doanh thu (đã gồm VAT)</div>
-          <div class="fs-3 fw-bold">{{ total_revenue }} đ</div>
-        </div></div>
-      </div>
-      <div class="col-md-4">
-        <div class="card"><div class="card-body">
-          <div class="text-muted">Tổng đơn hàng</div>
-          <div class="fs-3 fw-bold">{{ total_orders }}</div>
-        </div></div>
-      </div>
-      <div class="col-md-4">
-        <div class="card"><div class="card-body">
-          <div class="text-muted">Tổng tiền mặt</div>
-          <div class="fs-3 fw-bold">{{ cash_revenue }} đ</div>
-        </div></div>
-      </div>
-    </div>
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{{ chart|json_script:"chartData" }}
+<script>
+(function () {
+  if (!window.Chart) { return; }
+  var d = JSON.parse(document.getElementById('chartData').textContent);
+  var orange = '#ff7a00', peach = '#ffd2a8';
+  function vnd(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ'; }
+  var opts = { responsive: true, maintainAspectRatio: false };
 
-    <h2 class="h5">Món bán chạy</h2>
-    <table class="table table-striped">
-      <thead>
-        <tr><th>Món</th><th class="text-end">Số lượng bán</th></tr>
-      </thead>
-      <tbody>
-        {% for p in top_products %}
-        <tr>
-          <td>{{ p.product__name }}</td>
-          <td class="text-end">{{ p.qty }}</td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="2" class="text-center text-muted">Chưa có đơn nào được thanh toán trong ngày này.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  new Chart(document.getElementById('chDay'), {
+    type: 'bar',
+    data: { labels: d.labels, datasets: [{ label: 'Doanh thu', data: d.values, backgroundColor: orange, borderRadius: 6 }] },
+    options: Object.assign({}, opts, {
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return vnd(c.parsed.y); } } } },
+      scales: { y: { beginAtZero: true, ticks: { callback: function (v) { return vnd(v); } } } }
+    })
+  });
 
-    <a href="{% url 'order_create' %}" class="btn btn-outline-secondary">Quay lại tạo đơn</a>
+  new Chart(document.getElementById('chMethod'), {
+    type: 'doughnut',
+    data: { labels: ['Tiền mặt', 'QR'], datasets: [{ data: [d.cash, d.qr], backgroundColor: [orange, '#2f80ed'] }] },
+    options: Object.assign({}, opts, {
+      plugins: { tooltip: { callbacks: { label: function (c) { return c.label + ': ' + vnd(c.parsed); } } } }
+    })
+  });
+
+  var top = document.getElementById('chTop');
+  if (top) {
+    new Chart(top, {
+      type: 'bar',
+      data: { labels: d.top_labels, datasets: [{ label: 'Số lượng', data: d.top_values, backgroundColor: peach, borderColor: orange, borderWidth: 1.5, borderRadius: 6 }] },
+      options: Object.assign({}, opts, {
+        indexAxis: 'y', plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+      })
+    });
+  }
+})();
+</script>
 {% endblock %}
